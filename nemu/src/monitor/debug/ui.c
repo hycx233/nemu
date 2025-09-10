@@ -87,6 +87,49 @@ static int cmd_info(char *args) {
 	return 0;
 }
 
+static int cmd_x(char *args) {
+	if (args == NULL) {
+		printf("Usage: x N EXPR\n");
+		return 0;
+	}
+
+	char *n_str = strtok(args, " ");
+	char *expr_str = strtok(NULL, "");
+
+	if (n_str == NULL || expr_str == NULL) {
+		printf("Usage: x N EXPR\n");
+		return 0;
+	}
+
+	int n = atoi(n_str);
+	if (n <= 0) {
+		printf("Invalid number of words: %s\n", n_str);
+		return 0;
+	}
+	uint32_t addr;
+
+	// bool success;
+	// addr = expr(expr_str, &success);
+	// if (!success) {
+	// 	printf("Invalid expression: %s\n", expr_str);
+	// 	return 0;
+	// }
+
+	// temprary assume that the expression is addr
+	if (sscanf(expr_str, "%x", &addr) != 1) {
+		printf("Invalid expression: %s\n", expr_str);
+		return 0;
+	}
+
+	int i;
+	for (i = 0; i < n; i++) {
+		uint32_t data = swaddr_read(addr + i * 4, 4);
+		printf("0x%08x: 0x%08x\n", addr + i * 4, data);
+	}
+
+	return 0;
+}
+
 static int cmd_help(char *args);
 
 static struct {
@@ -99,6 +142,7 @@ static struct {
 	{ "q", "Exit NEMU", cmd_q },
 	{ "si", "Step N instructions", cmd_si },
 	{ "info", "Print the register state", cmd_info },
+	{ "x", "Scan memory", cmd_x }
 
 	/* TODO: Add more commands */
 
