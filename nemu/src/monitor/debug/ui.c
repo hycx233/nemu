@@ -50,6 +50,43 @@ static int cmd_si(char *args) {
 	return 0;
 }
 
+static int cmd_info(char *args) {
+	// print registers when args is "r"
+	if (args == NULL) {
+		printf("Usage: info r/w\n");
+		return 0;
+	}
+
+	if (strcmp(args, "r") == 0) {
+		// Print registers
+		int i;
+		for (i = 0; i < 8; i++) {
+			printf("%s: 0x%08x\n", regsl[i], reg_l(i));
+		}
+		// Print eip and eflags
+		printf("eip: 0x%" PRIx32 "\n", cpu.eip);
+		printf("eflags: 0x%" PRIx32 "\n", cpu.eflags.val);
+		// Print individual flags
+		printf("CF: %d\n", cpu.eflags.CF);
+		printf("PF: %d\n", cpu.eflags.PF);
+		printf("AF: %d\n", cpu.eflags.AF);
+		printf("ZF: %d\n", cpu.eflags.ZF);
+		printf("SF: %d\n", cpu.eflags.SF);
+		printf("TF: %d\n", cpu.eflags.TF);
+		printf("IF: %d\n", cpu.eflags.IF);
+		printf("DF: %d\n", cpu.eflags.DF);
+		printf("OF: %d\n", cpu.eflags.OF);
+		printf("IOPL: %d\n", cpu.eflags.IOPL);
+		printf("NT: %d\n", cpu.eflags.NT);
+	} else if (strcmp(args, "w") == 0) {
+		// Print watchpoints
+	} else {
+		printf("Unknown argument '%s'\n", args);
+	}
+
+	return 0;
+}
+
 static int cmd_help(char *args);
 
 static struct {
@@ -60,7 +97,8 @@ static struct {
 	{ "help", "Display informations about all supported commands", cmd_help },
 	{ "c", "Continue the execution of the program", cmd_c },
 	{ "q", "Exit NEMU", cmd_q },
-	{"si", "Step N instructions", cmd_si},
+	{ "si", "Step N instructions", cmd_si },
+	{ "info", "Print the register state", cmd_info },
 
 	/* TODO: Add more commands */
 
