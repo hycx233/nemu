@@ -61,11 +61,11 @@ static int cmd_info(char *args) {
 		// Print registers
 		int i;
 		for (i = 0; i < 8; i++) {
-			printf("%s: 0x%08x\n", regsl[i], reg_l(i));
+			printf("%s: 0x%08x (%u)\n", regsl[i], reg_l(i), reg_l(i));
 		}
 		// Print eip and eflags
-		printf("eip: 0x%" PRIx32 "\n", cpu.eip);
-		printf("eflags: 0x%" PRIx32 "\n", cpu.eflags.val);
+		printf("eip: 0x%08x (%u)\n", cpu.eip, cpu.eip);
+		printf("eflags: 0x%08x (%u)\n", cpu.eflags.val, cpu.eflags.val);
 		// Print individual flags
 		printf("CF: %d\n", cpu.eflags.CF);
 		printf("PF: %d\n", cpu.eflags.PF);
