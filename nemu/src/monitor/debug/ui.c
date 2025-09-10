@@ -1,3 +1,5 @@
+#include <inttypes.h>
+
 #include "monitor/monitor.h"
 #include "monitor/expr.h"
 #include "monitor/watchpoint.h"
@@ -36,6 +38,18 @@ static int cmd_q(char *args) {
 	return -1;
 }
 
+static int cmd_si(char *args) {
+	uint32_t step = 1;
+	if (args != NULL) {
+		if (sscanf(args, "%u", &step) != 1 || step == 0) {
+			printf("Invalid number of steps: %s\n", args);
+			return 0;
+		}
+	}
+	cpu_exec(step);
+	return 0;
+}
+
 static int cmd_help(char *args);
 
 static struct {
@@ -46,6 +60,7 @@ static struct {
 	{ "help", "Display informations about all supported commands", cmd_help },
 	{ "c", "Continue the execution of the program", cmd_c },
 	{ "q", "Exit NEMU", cmd_q },
+	{"si", "Step N instructions", cmd_si},
 
 	/* TODO: Add more commands */
 
