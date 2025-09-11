@@ -174,7 +174,7 @@ static int find_dominant_op(int l, int r, bool *success) {
 			default: break;
 		}
 		// find the rightmost operator with the lowest precedence
-		if (pri >= 0 && pri < min_pri) {
+		if (pri != -1 && pri <= min_pri) {
 			min_pri = pri;
 			op = i;
 		}
