@@ -7,10 +7,15 @@
 #include <regex.h>
 
 enum {
-	NOTYPE = 256, EQ
-
+	NOTYPE = 256,
+	EQ,			// 等于
+	NUMBER,		// 数字
+	MINUS,		// 减号
+	MULTIPLY,	// 乘号
+	DIVIDE,		// 除号
+	LPAREN,		// 左括号
+	RPAREN		// 右括号
 	/* TODO: Add more token types */
-
 };
 
 static struct rule {
@@ -22,9 +27,15 @@ static struct rule {
 	 * Pay attention to the precedence level of different rules.
 	 */
 
-	{" +",	NOTYPE},				// spaces
-	{"\\+", '+'},					// plus
-	{"==", EQ}						// equal
+	{" +", NOTYPE},			// spaces				" "
+	{"\\+", '+'},			// plus					"+"
+	{"-", MINUS},			// minus				"-"
+	{"\\*", MULTIPLY},		// multiply				"*"
+	{"/", DIVIDE},			// divide				"/"
+	{"\\(", LPAREN},			// left parenthesis		"("
+	{"\\)", RPAREN},			// right parenthesis	")"
+	{"[0-9]+", NUMBER},		// decimal number		"[0-9]+"
+	{"==", EQ}				// equal				"=="
 };
 
 #define NR_REGEX (sizeof(rules) / sizeof(rules[0]) )
@@ -79,6 +90,29 @@ static bool make_token(char *e) {
 				 */
 
 				switch(rules[i].token_type) {
+					case NOTYPE:
+						// ignore spaces
+						break;
+					case NUMBER:
+						tokens[nr_token].type = NUMBER;
+						memset(tokens[nr_token].str, 0, sizeof(tokens[nr_token].str));
+						// ensure not to overflow
+						int copy_len = substr_len > 31 ? 31 : substr_len;
+						strncpy(tokens[nr_token].str, substr_start, copy_len);
+						tokens[nr_token].str[copy_len] = '\0';
+						nr_token++;
+						break;
+					case '+':
+					case MINUS:
+					case MULTIPLY:
+					case DIVIDE:
+					case LPAREN:
+					case RPAREN:
+					case EQ:
+						tokens[nr_token].type = rules[i].token_type;
+						tokens[nr_token].str[0] = '\0';
+						nr_token++;
+						break;
 					default: panic("please implement me");
 				}
 
