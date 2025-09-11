@@ -10,6 +10,7 @@ enum {
 	NOTYPE = 256,
 	EQ,			// 等于
 	NUMBER,		// 数字
+	PLUS,		// 加号
 	MINUS,		// 减号
 	MULTIPLY,	// 乘号
 	DIVIDE,		// 除号
@@ -28,7 +29,7 @@ static struct rule {
 	 */
 
 	{" +", NOTYPE},			// spaces				" "
-	{"\\+", '+'},			// plus					"+"
+	{"\\+", PLUS},			// plus					"+"
 	{"-", MINUS},			// minus				"-"
 	{"\\*", MULTIPLY},		// multiply				"*"
 	{"/", DIVIDE},			// divide				"/"
@@ -102,7 +103,7 @@ static bool make_token(char *e) {
 						tokens[nr_token].str[copy_len] = '\0';
 						nr_token++;
 						break;
-					case '+':
+					case PLUS:
 					case MINUS:
 					case MULTIPLY:
 					case DIVIDE:
