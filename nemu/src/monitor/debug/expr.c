@@ -21,6 +21,7 @@ enum {
 	MINUS,		// 减号
 	NEG,		// 负号（单目运算符）
 	MULTIPLY,	// 乘号
+	DEREF,		// 解引用（单目运算符）
 	DIVIDE,		// 除号
 	LPAREN,		// 左括号
 	RPAREN,		// 右括号
@@ -157,7 +158,6 @@ static bool make_token(char *e) {
 						nr_token++;
 						break;
 					case PLUS:
-					case MULTIPLY:
 					case DIVIDE:
 					case LPAREN:
 					case RPAREN:
@@ -167,6 +167,18 @@ static bool make_token(char *e) {
 					case OR:
 					case NOT:
 						tokens[nr_token].type = rules[i].token_type;
+						tokens[nr_token].str[0] = '\0';
+						nr_token++;
+						break;
+					case MULTIPLY:
+						// Check if it's dereference or multiply operator
+						// It's dereference if previous token is not number/register/right parenthesis
+						if (nr_token == 0 || 
+							(tokens[nr_token-1].type != NUMBER && tokens[nr_token-1].type != RPAREN && tokens[nr_token-1].type != REGISTER)) {
+							tokens[nr_token].type = DEREF;
+						} else {
+							tokens[nr_token].type = MULTIPLY;
+						}
 						tokens[nr_token].str[0] = '\0';
 						nr_token++;
 						break;
@@ -241,7 +253,8 @@ static int find_dominant_op(int l, int r, bool *success) {
 			case MULTIPLY:
 			case DIVIDE: pri = 4; break;
 			case NEG:
-			case NOT: pri = 5; break; // unary operators have highest precedence
+			case NOT:
+			case DEREF: pri = 5; break; // unary operators have highest precedence
 			default: break;
 		}
 		// Find the rightmost operator with the lowest precedence
@@ -313,6 +326,13 @@ static uint32_t eval(int l, int r, bool *success) {
 		uint32_t val = eval(op + 1, r, success);
 		if (!*success) return 0;
 		return !val;  // logical NOT: 0 if val != 0, 1 if val == 0
+	}
+	
+	if (tokens[op].type == DEREF) {
+		uint32_t addr = eval(op + 1, r, success);
+		if (!*success) return 0;
+		// Dereference: read 4 bytes from memory address
+		return swaddr_read(addr, 4);
 	}
 	
 	uint32_t val1 = eval(l, op - 1, success);
