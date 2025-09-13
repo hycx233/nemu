@@ -257,11 +257,12 @@ static int find_dominant_op(int l, int r, bool *success) {
 			case DEREF: pri = 5; break; // unary operators have highest precedence
 			default: break;
 		}
-		// Find the rightmost operator with the lowest precedence
+		// Find the lowest precedence
 		if (pri != -1) {
-			if (tokens[i].type == NEG) {
-				// For unary operators, find the rightmost one
-				if (pri <= min_pri) {
+			// For unary operators, we need special handling for right associativity
+			if (tokens[i].type == NEG || tokens[i].type == NOT || tokens[i].type == DEREF) {
+				// For unary operators, choose the leftmost one
+				if (pri < min_pri || (pri == min_pri && op == -1)) {
 					min_pri = pri;
 					op = i;
 				}
