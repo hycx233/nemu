@@ -7,6 +7,7 @@
 #include <regex.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 enum {
 	NOTYPE = 256,
@@ -18,7 +19,8 @@ enum {
 	MULTIPLY,	// 乘号
 	DIVIDE,		// 除号
 	LPAREN,		// 左括号
-	RPAREN		// 右括号
+	RPAREN,		// 右括号
+	REGISTER	// 寄存器
 	/* TODO: Add more token types */
 };
 
@@ -31,16 +33,17 @@ static struct rule {
 	 * Pay attention to the precedence level of different rules.
 	 */
 
-	{" +", NOTYPE},			// spaces				" "
-	{"\\+", PLUS},			// plus					"+"
-	{"-", MINUS},			// minus				"-"
-	{"\\*", MULTIPLY},		// multiply				"*"
-	{"/", DIVIDE},			// divide				"/"
-	{"\\(", LPAREN},			// left parenthesis		"("
-	{"\\)", RPAREN},			// right parenthesis	")"
-	{"0[xX][0-9a-fA-F]+", NUMBER},	// hexadecimal number	"0x[0-9a-fA-F]+"
-	{"[0-9]+", NUMBER},		// decimal number		"[0-9]+"
-	{"==", EQ}				// equal				"=="
+	{" +", NOTYPE},								// spaces
+	{"\\+", PLUS},								// plus
+	{"-", MINUS},								// minus
+	{"\\*", MULTIPLY},							// multiply
+	{"/", DIVIDE},								// divide
+	{"\\(", LPAREN},							// left parenthesis
+	{"\\)", RPAREN},							// right parenthesis
+	{"\\$[a-zA-Z][a-zA-Z0-9]*", REGISTER},		// register like "$eax", "$ebx"
+	{"0[xX][0-9a-fA-F]+", NUMBER},				// hexadecimal number like "0x1F"
+	{"[0-9]+", NUMBER},							// decimal number
+	{"==", EQ}									// equal
 };
 
 #define NR_REGEX (sizeof(rules) / sizeof(rules[0]) )
@@ -72,6 +75,43 @@ typedef struct token {
 Token tokens[32];
 int nr_token;
 
+// Get register value by register name
+static uint32_t get_register_value(const char *reg_name, bool *success) {
+	// Skip the leading '$' symbol
+	const char *name = reg_name + 1;
+	int i;
+	
+	// Check special register first
+	if (strcmp(name, "eip") == 0) {
+		return cpu.eip;
+	}
+	
+	// Check 32-bit registers
+	for (i = 0; i < 8; i++) {
+		if (strcmp(name, regsl[i]) == 0) {
+			return reg_l(i);
+		}
+	}
+	
+	// Check 16-bit registers  
+	for (i = 0; i < 8; i++) {
+		if (strcmp(name, regsw[i]) == 0) {
+			return reg_w(i);
+		}
+	}
+	
+	// Check 8-bit registers
+	for (i = 0; i < 8; i++) {
+		if (strcmp(name, regsb[i]) == 0) {
+			return reg_b(i);
+		}
+	}
+	
+	// Invalid register name
+	*success = false;
+	return 0;
+}
+
 static bool make_token(char *e) {
 	int position = 0;
 	int i;
@@ -99,7 +139,8 @@ static bool make_token(char *e) {
 						// ignore spaces
 						break;
 					case NUMBER:
-						tokens[nr_token].type = NUMBER;
+					case REGISTER:
+						tokens[nr_token].type = rules[i].token_type;
 						memset(tokens[nr_token].str, 0, sizeof(tokens[nr_token].str));
 						// ensure not to overflow
 						int copy_len = substr_len > 31 ? 31 : substr_len;
@@ -118,9 +159,10 @@ static bool make_token(char *e) {
 						nr_token++;
 						break;
 					case MINUS:
-						// negative when the previous token is not a number or right parenthesis
+						// Check if it's negative sign or minus operator
+						// It's negative if previous token is not number/register/right parenthesis
 						if (nr_token == 0 || 
-							(tokens[nr_token-1].type != NUMBER && tokens[nr_token-1].type != RPAREN)) {
+							(tokens[nr_token-1].type != NUMBER && tokens[nr_token-1].type != RPAREN && tokens[nr_token-1].type != REGISTER)) {
 							tokens[nr_token].type = NEG;
 						} else {
 							tokens[nr_token].type = MINUS;
@@ -183,18 +225,19 @@ static int find_dominant_op(int l, int r, bool *success) {
 			case MINUS: pri = 2; break;
 			case MULTIPLY:
 			case DIVIDE: pri = 3; break;
-			case NEG: pri = 4; break;
+			case NEG: pri = 4; break; // unary negative has highest precedence
 			default: break;
 		}
-		// find the rightmost operator with the lowest precedence
+		// Find the rightmost operator with the lowest precedence
 		if (pri != -1) {
 			if (tokens[i].type == NEG) {
-				// find the rightmost when dealing with unary operators of equal precedence
+				// For unary operators, find the rightmost one
 				if (pri <= min_pri) {
 					min_pri = pri;
 					op = i;
 				}
 			} else {
+				// For binary operators, find the rightmost one  
 				if (pri <= min_pri) {
 					min_pri = pri;
 					op = i;
@@ -220,7 +263,7 @@ static uint32_t eval(int l, int r, bool *success) {
 
 	if (l == r) {
 		if (tokens[l].type == NUMBER) {
-			// check hex or dec
+			// Detect base: hex if starts with 0x/0X, otherwise decimal
 			int base = 10;
 			if (strlen(tokens[l].str) >= 2 && 
 				tokens[l].str[0] == '0' && 
@@ -228,13 +271,13 @@ static uint32_t eval(int l, int r, bool *success) {
 				base = 16;
 			}
 			return (uint32_t)strtoul(tokens[l].str, NULL, base);
+		} else if (tokens[l].type == REGISTER) {
+			return get_register_value(tokens[l].str, success);
 		} else {
 			*success = false;
 			return 0;
 		}
 	}
-
-	// (removed duplicate NEG handling here)
 
 	if (check_parentheses(l, r, success)) {
 		return eval(l + 1, r - 1, success);
@@ -243,7 +286,7 @@ static uint32_t eval(int l, int r, bool *success) {
 	int op = find_dominant_op(l, r, success);
 	if (!*success) return 0;
 	
-	// 处理单目运算符
+	// Handle unary operator
 	if (tokens[op].type == NEG) {
 		uint32_t val = eval(op + 1, r, success);
 		if (!*success) return 0;
