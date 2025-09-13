@@ -14,6 +14,7 @@ enum {
 	NUMBER,		// 数字
 	PLUS,		// 加号
 	MINUS,		// 减号
+	NEG,		// 负号（单目运算符）
 	MULTIPLY,	// 乘号
 	DIVIDE,		// 除号
 	LPAREN,		// 左括号
@@ -37,6 +38,7 @@ static struct rule {
 	{"/", DIVIDE},			// divide				"/"
 	{"\\(", LPAREN},			// left parenthesis		"("
 	{"\\)", RPAREN},			// right parenthesis	")"
+	{"0[xX][0-9a-fA-F]+", NUMBER},	// hexadecimal number	"0x[0-9a-fA-F]+"
 	{"[0-9]+", NUMBER},		// decimal number		"[0-9]+"
 	{"==", EQ}				// equal				"=="
 };
@@ -106,13 +108,23 @@ static bool make_token(char *e) {
 						nr_token++;
 						break;
 					case PLUS:
-					case MINUS:
 					case MULTIPLY:
 					case DIVIDE:
 					case LPAREN:
 					case RPAREN:
 					case EQ:
 						tokens[nr_token].type = rules[i].token_type;
+						tokens[nr_token].str[0] = '\0';
+						nr_token++;
+						break;
+					case MINUS:
+						// negative when the previous token is not a number or right parenthesis
+						if (nr_token == 0 || 
+							(tokens[nr_token-1].type != NUMBER && tokens[nr_token-1].type != RPAREN)) {
+							tokens[nr_token].type = NEG;
+						} else {
+							tokens[nr_token].type = MINUS;
+						}
 						tokens[nr_token].str[0] = '\0';
 						nr_token++;
 						break;
@@ -171,12 +183,23 @@ static int find_dominant_op(int l, int r, bool *success) {
 			case MINUS: pri = 2; break;
 			case MULTIPLY:
 			case DIVIDE: pri = 3; break;
+			case NEG: pri = 4; break;
 			default: break;
 		}
 		// find the rightmost operator with the lowest precedence
-		if (pri != -1 && pri <= min_pri) {
-			min_pri = pri;
-			op = i;
+		if (pri != -1) {
+			if (tokens[i].type == NEG) {
+				// find the rightmost when dealing with unary operators of equal precedence
+				if (pri <= min_pri) {
+					min_pri = pri;
+					op = i;
+				}
+			} else {
+				if (pri <= min_pri) {
+					min_pri = pri;
+					op = i;
+				}
+			}
 		}
 	}
 	if (op == -1) {
@@ -197,12 +220,21 @@ static uint32_t eval(int l, int r, bool *success) {
 
 	if (l == r) {
 		if (tokens[l].type == NUMBER) {
-			return (uint32_t)strtoul(tokens[l].str, NULL, 10);
+			// check hex or dec
+			int base = 10;
+			if (strlen(tokens[l].str) >= 2 && 
+				tokens[l].str[0] == '0' && 
+				(tokens[l].str[1] == 'x' || tokens[l].str[1] == 'X')) {
+				base = 16;
+			}
+			return (uint32_t)strtoul(tokens[l].str, NULL, base);
 		} else {
 			*success = false;
 			return 0;
 		}
 	}
+
+	// (removed duplicate NEG handling here)
 
 	if (check_parentheses(l, r, success)) {
 		return eval(l + 1, r - 1, success);
@@ -210,6 +242,14 @@ static uint32_t eval(int l, int r, bool *success) {
 
 	int op = find_dominant_op(l, r, success);
 	if (!*success) return 0;
+	
+	// 处理单目运算符
+	if (tokens[op].type == NEG) {
+		uint32_t val = eval(op + 1, r, success);
+		if (!*success) return 0;
+		return -val;
+	}
+	
 	uint32_t val1 = eval(l, op - 1, success);
 	if (!*success) return 0;
 	uint32_t val2 = eval(op + 1, r, success);
