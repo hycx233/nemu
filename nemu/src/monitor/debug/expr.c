@@ -13,6 +13,9 @@ enum {
 	NOTYPE = 256,
 	EQ,			// 等于
 	NEQ,		// 不等于
+	AND,		// 逻辑与
+	OR,			// 逻辑或
+	NOT,		// 逻辑非（单目运算符）
 	NUMBER,		// 数字
 	PLUS,		// 加号
 	MINUS,		// 减号
@@ -35,8 +38,11 @@ static struct rule {
 	 */
 
 	{" +", NOTYPE},								// spaces
+	{"&&", AND},								// logical and
+	{"\\|\\|", OR},								// logical or  
 	{"==", EQ},									// equal
 	{"!=", NEQ},								// not equal
+	{"!", NOT},									// logical not
 	{"\\+", PLUS},								// plus
 	{"-", MINUS},								// minus
 	{"\\*", MULTIPLY},							// multiply
@@ -157,6 +163,9 @@ static bool make_token(char *e) {
 					case RPAREN:
 					case EQ:
 					case NEQ:
+					case AND:
+					case OR:
+					case NOT:
 						tokens[nr_token].type = rules[i].token_type;
 						tokens[nr_token].str[0] = '\0';
 						nr_token++;
@@ -223,13 +232,16 @@ static int find_dominant_op(int l, int r, bool *success) {
 
 		int pri = -1;
 		switch (tokens[i].type) {
+			case OR: pri = 0; break;   // || has lowest precedence
+			case AND: pri = 1; break;  // && has higher precedence than ||
 			case EQ:
-			case NEQ: pri = 1; break;
+			case NEQ: pri = 2; break;  // == != have higher precedence than logical ops
 			case PLUS:
-			case MINUS: pri = 2; break;
+			case MINUS: pri = 3; break;
 			case MULTIPLY:
-			case DIVIDE: pri = 3; break;
-			case NEG: pri = 4; break; // unary negative has highest precedence
+			case DIVIDE: pri = 4; break;
+			case NEG:
+			case NOT: pri = 5; break; // unary operators have highest precedence
 			default: break;
 		}
 		// Find the rightmost operator with the lowest precedence
@@ -290,11 +302,17 @@ static uint32_t eval(int l, int r, bool *success) {
 	int op = find_dominant_op(l, r, success);
 	if (!*success) return 0;
 	
-	// Handle unary operator
+	// Handle unary operators
 	if (tokens[op].type == NEG) {
 		uint32_t val = eval(op + 1, r, success);
 		if (!*success) return 0;
 		return -val;
+	}
+	
+	if (tokens[op].type == NOT) {
+		uint32_t val = eval(op + 1, r, success);
+		if (!*success) return 0;
+		return !val;  // logical NOT: 0 if val != 0, 1 if val == 0
 	}
 	
 	uint32_t val1 = eval(l, op - 1, success);
@@ -314,6 +332,8 @@ static uint32_t eval(int l, int r, bool *success) {
 			return val1 / val2;
 		case EQ: return val1 == val2;
 		case NEQ: return val1 != val2;
+		case AND: return val1 && val2;  // logical AND: 1 if both non-zero, 0 otherwise
+		case OR: return val1 || val2;   // logical OR: 1 if either non-zero, 0 if both zero
 		default:
 			*success = false;
 			return 0;
