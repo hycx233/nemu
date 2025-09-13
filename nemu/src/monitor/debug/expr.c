@@ -12,6 +12,7 @@
 enum {
 	NOTYPE = 256,
 	EQ,			// 等于
+	NEQ,		// 不等于
 	NUMBER,		// 数字
 	PLUS,		// 加号
 	MINUS,		// 减号
@@ -34,6 +35,8 @@ static struct rule {
 	 */
 
 	{" +", NOTYPE},								// spaces
+	{"==", EQ},									// equal
+	{"!=", NEQ},								// not equal
 	{"\\+", PLUS},								// plus
 	{"-", MINUS},								// minus
 	{"\\*", MULTIPLY},							// multiply
@@ -42,8 +45,7 @@ static struct rule {
 	{"\\)", RPAREN},							// right parenthesis
 	{"\\$[a-zA-Z][a-zA-Z0-9]*", REGISTER},		// register like "$eax", "$ebx"
 	{"0[xX][0-9a-fA-F]+", NUMBER},				// hexadecimal number like "0x1F"
-	{"[0-9]+", NUMBER},							// decimal number
-	{"==", EQ}									// equal
+	{"[0-9]+", NUMBER}							// decimal number
 };
 
 #define NR_REGEX (sizeof(rules) / sizeof(rules[0]) )
@@ -154,6 +156,7 @@ static bool make_token(char *e) {
 					case LPAREN:
 					case RPAREN:
 					case EQ:
+					case NEQ:
 						tokens[nr_token].type = rules[i].token_type;
 						tokens[nr_token].str[0] = '\0';
 						nr_token++;
@@ -220,7 +223,8 @@ static int find_dominant_op(int l, int r, bool *success) {
 
 		int pri = -1;
 		switch (tokens[i].type) {
-			case EQ: pri = 1; break;
+			case EQ:
+			case NEQ: pri = 1; break;
 			case PLUS:
 			case MINUS: pri = 2; break;
 			case MULTIPLY:
@@ -309,6 +313,7 @@ static uint32_t eval(int l, int r, bool *success) {
 			}
 			return val1 / val2;
 		case EQ: return val1 == val2;
+		case NEQ: return val1 != val2;
 		default:
 			*success = false;
 			return 0;
