@@ -80,6 +80,7 @@ static int cmd_info(char *args) {
 		printf("NT: %d\n", cpu.eflags.NT);
 	} else if (strcmp(args, "w") == 0) {
 		// Print watchpoints
+		print_wp();
 	} else {
 		printf("Unknown argument '%s'\n", args);
 	}
@@ -147,6 +148,52 @@ static int cmd_p(char *args) {
 	return 0;
 }
 
+static int cmd_w(char *args) {
+	if (args == NULL) {
+		printf("Usage: w EXPR\n");
+		return 0;
+	}
+	
+	// Test if expression is valid
+	bool success;
+	uint32_t value = expr(args, &success);
+	if (!success) {
+		printf("Invalid expression: %s\n", args);
+		return 0;
+	}
+	
+	// Create new watchpoint
+	WP *wp = new_wp();
+	if (wp == NULL) {
+		return 0;
+	}
+	
+	// Store expression and initial value
+	strcpy(wp->expr, args);
+	wp->old_value = value;
+	
+	printf("Hardware watchpoint %d: %s\n", wp->NO, wp->expr);
+	return 0;
+}
+
+static int cmd_d(char *args) {
+	if (args == NULL) {
+		printf("Usage: d N\n");
+		return 0;
+	}
+	
+	int no = atoi(args);
+	WP *wp = find_wp(no);
+	if (wp == NULL) {
+		printf("No watchpoint number %d.\n", no);
+		return 0;
+	}
+	
+	free_wp(wp);
+	printf("Delete watchpoint %d.\n", no);
+	return 0;
+}
+
 static int cmd_help(char *args);
 
 static struct {
@@ -158,9 +205,11 @@ static struct {
 	{ "c", "Continue the execution of the program", cmd_c },
 	{ "q", "Exit NEMU", cmd_q },
 	{ "si", "Step N instructions", cmd_si },
-	{ "info", "Print the register state", cmd_info },
+	{ "info", "Print the register/watchpoint state", cmd_info },
 	{ "x", "Scan memory", cmd_x },
 	{ "p", "Evaluate expression", cmd_p },
+	{ "w", "Set watchpoint", cmd_w },
+	{ "d", "Delete watchpoint", cmd_d },
 
 	/* TODO: Add more commands */
 
