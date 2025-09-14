@@ -109,15 +109,9 @@ static int cmd_x(char *args) {
 	}
 	uint32_t addr;
 
-	// bool success;
-	// addr = expr(expr_str, &success);
-	// if (!success) {
-	// 	printf("Invalid expression: %s\n", expr_str);
-	// 	return 0;
-	// }
-
-	// temprary assume that the expression is addr
-	if (sscanf(expr_str, "%x", &addr) != 1) {
+	bool success;
+	addr = expr(expr_str, &success);
+	if (!success) {
 		printf("Invalid expression: %s\n", expr_str);
 		return 0;
 	}
