@@ -22,6 +22,7 @@
 #include "control/jmp.h"
 #include "control/call.h"
 #include "control/jcc.h"
+#include "control/ret.h"
 
 #include "logic/and.h"
 #include "logic/or.h"
