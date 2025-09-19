@@ -104,7 +104,8 @@ static void do_execute() {
 	}
 	
 	if(should_jump) {
-		cpu.eip += op_src->val;
+		DATA_TYPE_S offset = op_src->val;
+		cpu.eip += offset;
 	}
 	
 	print_asm("%s %x", mnemonic, cpu.eip + 1 + DATA_BYTE + op_src->val);
