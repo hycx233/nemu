@@ -107,8 +107,8 @@ static void do_execute() {
 		DATA_TYPE_S offset = op_src->val;
 		cpu.eip += offset;
 	}
-	
-	print_asm("%s %x", mnemonic, cpu.eip + 1 + DATA_BYTE + op_src->val);
+
+	print_asm("%s %x", mnemonic, cpu.eip + 1 + DATA_BYTE);
 }
 
 make_instr_helper(si)
