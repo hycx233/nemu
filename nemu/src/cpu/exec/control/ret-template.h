@@ -16,7 +16,7 @@ make_helper(concat(ret_i_, SUFFIX)) {
 	cpu.esp += DATA_BYTE + imm;
 	cpu.eip = ret_addr;
 	print_asm("ret $0x%x", imm);
-	return 2;
+	return 0;
 }
 
 #include "cpu/exec/template-end.h"
