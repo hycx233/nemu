@@ -3,13 +3,20 @@
 #define instr push
 
 static void do_execute() {
-	// push operand onto stack
-	cpu.esp -= DATA_BYTE;
-	swaddr_write(cpu.esp, DATA_BYTE, op_src->val);
+	if (ops_decoded.is_operand_size_16) {
+		cpu.esp -= 2;
+		swaddr_write(cpu.esp, 2, op_src->val);
+	}
+	else {
+		cpu.esp -= 4;
+		swaddr_write(cpu.esp, 4, op_src->val);
+	}
 	
-	print_asm("push" str(SUFFIX) " %s", op_src->str);
+	print_asm_template1();
 }
 
 make_instr_helper(r)
+make_instr_helper(rm)
+make_instr_helper(i)
 
 #include "cpu/exec/template-end.h"
