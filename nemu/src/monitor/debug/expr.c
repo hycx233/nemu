@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "monitor/elf.h"
 
 enum {
 	NOTYPE = 256,
@@ -17,6 +18,7 @@ enum {
 	OR,			// 逻辑或
 	NOT,		// 逻辑非（单目运算符）
 	NUMBER,		// 数字
+    IDENT,      // 标识符（变量名）
 	PLUS,		// 加号
 	MINUS,		// 减号
 	NEG,		// 负号（单目运算符）
@@ -52,7 +54,8 @@ static struct rule {
 	{"\\)", RPAREN},							// right parenthesis
 	{"\\$[a-zA-Z][a-zA-Z0-9]*", REGISTER},		// register like "$eax", "$ebx"
 	{"0[xX][0-9a-fA-F]+", NUMBER},				// hexadecimal number like "0x1F"
-	{"[0-9]+", NUMBER}							// decimal number
+	{"[0-9]+", NUMBER},							// decimal number
+    {"[a-zA-Z_][a-zA-Z0-9_]*", IDENT}           // identifier
 };
 
 #define NR_REGEX (sizeof(rules) / sizeof(rules[0]) )
@@ -149,6 +152,7 @@ static bool make_token(char *e) {
 						break;
 					case NUMBER:
 					case REGISTER:
+					case IDENT:
 						tokens[nr_token].type = rules[i].token_type;
 						memset(tokens[nr_token].str, 0, sizeof(tokens[nr_token].str));
 						// ensure not to overflow
@@ -303,6 +307,22 @@ static uint32_t eval(int l, int r, bool *success) {
 			return (uint32_t)strtoul(tokens[l].str, NULL, base);
 		} else if (tokens[l].type == REGISTER) {
 			return get_register_value(tokens[l].str, success);
+		} else if (tokens[l].type == IDENT) {
+			if (symtab == NULL || strtab == NULL) {
+				*success = false;
+				return 0;
+			}
+			int i;
+			for (i = 0; i < nr_symtab_entry; i++) {
+				if (ELF32_ST_TYPE(symtab[i].st_info) == STT_OBJECT) {
+					const char *name = strtab + symtab[i].st_name;
+					if (strcmp(name, tokens[l].str) == 0) {
+						return symtab[i].st_value;
+					}
+				}
+			}
+			*success = false;
+			return 0;
 		} else {
 			*success = false;
 			return 0;
