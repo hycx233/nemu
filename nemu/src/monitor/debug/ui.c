@@ -1,6 +1,7 @@
 #include <inttypes.h>
 
 #include "monitor/monitor.h"
+#include "monitor/elf.h"
 #include "monitor/expr.h"
 #include "monitor/watchpoint.h"
 #include "nemu.h"
@@ -8,6 +9,7 @@
 #include <stdlib.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <elf.h>
 
 void cpu_exec(uint32_t);
 
@@ -188,6 +190,78 @@ static int cmd_d(char *args) {
 	return 0;
 }
 
+static const char* find_function_name(uint32_t addr) {
+	int i;
+	for (i = 0; i < nr_symtab_entry; i++) {
+		if (ELF32_ST_TYPE(symtab[i].st_info) == STT_FUNC) {
+			uint32_t func_start = symtab[i].st_value;
+			uint32_t func_end = func_start + symtab[i].st_size;
+			if (addr >= func_start && addr < func_end) {
+				return strtab + symtab[i].st_name;
+			}
+		}
+	}
+	return "??";  // Unknown function
+}
+
+static int cmd_bt(char *args) {
+	uint32_t current_ebp = cpu.ebp;
+	int max_frames = 100;
+	int cnt = 0;
+	
+	// Arrays to store collected frame info
+	uint32_t ebp_arr[100];
+	uint32_t ret_arr[100];
+	uint32_t args_arr[100][4];
+
+	// Collect frames
+	while (current_ebp != 0 && cnt < max_frames) {
+		uint32_t ret_addr = swaddr_read(current_ebp + 4, 4);
+		uint32_t a0 = swaddr_read(current_ebp + 8, 4);
+		uint32_t a1 = swaddr_read(current_ebp + 12, 4);
+		uint32_t a2 = swaddr_read(current_ebp + 16, 4);
+		uint32_t a3 = swaddr_read(current_ebp + 20, 4);
+
+		ebp_arr[cnt] = current_ebp;
+		ret_arr[cnt] = ret_addr;
+		args_arr[cnt][0] = a0;
+		args_arr[cnt][1] = a1;
+		args_arr[cnt][2] = a2;
+		args_arr[cnt][3] = a3;
+
+		// move to previous frame
+		current_ebp = swaddr_read(current_ebp, 4);
+		cnt++;
+	}
+
+	printf("Backtrace:\n");
+
+	// Print frames using mapping: frame 0 -> cpu.eip; frame i -> ret_arr[i-1]
+	int i;
+	for (i = 0; i < cnt; i++) {
+		if (i == 0) {
+			const char *func = find_function_name(cpu.eip);
+			printf("#%d  0x%08x in %s (", i, cpu.eip, func);
+		} else {
+			uint32_t print_addr = ret_arr[i-1];
+			uint32_t lookup_addr = (print_addr == 0) ? 0 : print_addr - 1;
+			const char *func = find_function_name(lookup_addr);
+			printf("#%d  0x%08x in %s (", i, print_addr, func);
+		}
+
+		printf("0x%08x, 0x%08x, 0x%08x, 0x%08x", args_arr[i][0], args_arr[i][1], args_arr[i][2], args_arr[i][3]);
+		printf(")\n");
+	}
+
+	if (cnt >= max_frames) {
+		printf("Warning: Stack trace truncated (too many frames)\n");
+	}
+
+	return 0;
+}
+
+
+
 static int cmd_help(char *args);
 
 static struct {
@@ -204,6 +278,7 @@ static struct {
 	{ "p", "Evaluate expression", cmd_p },
 	{ "w", "Set watchpoint", cmd_w },
 	{ "d", "Delete watchpoint", cmd_d },
+	{ "bt", "Print backtrace of all stack frames", cmd_bt },
 
 	/* TODO: Add more commands */
 
@@ -259,7 +334,7 @@ void ui_mainloop() {
 		int i;
 		for(i = 0; i < NR_CMD; i ++) {
 			if(strcmp(cmd, cmd_table[i].name) == 0) {
-				if(cmd_table[i].handler(args) < 0) { return; }
+				if (cmd_table[i].handler(args) < 0) { return; }
 				break;
 			}
 		}
