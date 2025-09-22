@@ -28,27 +28,24 @@ uint32_t loader() {
 	ramdisk_read(buf, ELF_OFFSET_IN_DISK, 4096);
 #endif
 
-	elf = (void*)buf;
+	elf = (Elf32_Ehdr *)buf;
 
-	/* TODO: fix the magic number with the correct one */
-	const uint32_t elf_magic = 0xBadC0de;
-	uint32_t *p_magic = (void *)buf;
-	nemu_assert(*p_magic == elf_magic);
+	// Verify ELF magic number
+	const uint8_t elf_magic[] = {0x7f, 'E', 'L', 'F'};
+	nemu_assert(memcmp(elf->e_ident, elf_magic, 4) == 0);
 
-	/* Load each program segment */
-	panic("please implement me");
-	for(; true; ) {
-		/* Scan the program header table, load each segment into memory */
-		if(ph->p_type == PT_LOAD) {
+	// Iterate over program headers
+	ph = (Elf32_Phdr *)(buf + elf->e_phoff);
+	int i;
+	for (i = 0; i < elf->e_phnum; i++, ph++) {
+		if (ph->p_type == PT_LOAD) {
+			// Load segment into memory
+			ramdisk_read((uint8_t *)ph->p_vaddr, ph->p_offset, ph->p_filesz);
 
-			/* TODO: read the content of the segment from the ELF file 
-			 * to the memory region [VirtAddr, VirtAddr + FileSiz)
-			 */
-			 
-			 
-			/* TODO: zero the memory region 
-			 * [VirtAddr + FileSiz, VirtAddr + MemSiz)
-			 */
+			// Zero out the .bss section
+			if (ph->p_memsz > ph->p_filesz) {
+				memset((uint8_t *)(ph->p_vaddr + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
+			}
 
 
 #ifdef IA32_PAGE
