@@ -2,10 +2,20 @@
 #define __REG_H__
 
 #include "common.h"
+#include "../../lib-common/x86-inc/cpu.h"
 
 enum { R_EAX, R_ECX, R_EDX, R_EBX, R_ESP, R_EBP, R_ESI, R_EDI };
 enum { R_AX, R_CX, R_DX, R_BX, R_SP, R_BP, R_SI, R_DI };
 enum { R_AL, R_CL, R_DL, R_BL, R_AH, R_CH, R_DH, R_BH };
+
+/* Segment registers */
+enum { R_ES, R_CS, R_SS, R_DS, R_FS, R_GS };
+
+/* GDTR structure */
+typedef struct {
+	uint16_t limit;
+	uint32_t base;
+} GDTR;
 
 /* TODO: Re-organize the `CPU_state' structure to match the register
  * encoding scheme in i386 instruction format. For example, if we
@@ -13,6 +23,13 @@ enum { R_AL, R_CL, R_DL, R_BL, R_AH, R_CH, R_DH, R_BH };
  * cpu.gpr[1]._8[1], we will get the 'ch' register. Hint: Use `union'.
  * For more details about the register encoding scheme, see i386 manual.
  */
+
+/* Segment register with visible and hidden parts */
+typedef struct {
+	uint16_t val;        /* visible part: selector */
+	uint32_t base;       /* hidden part: base address from descriptor */
+	uint32_t limit;      /* hidden part: limit from descriptor */
+} SegReg;
 
 typedef struct {
 	union {
@@ -52,6 +69,15 @@ typedef struct {
 		};
 		uint32_t val;
 	} eflags;
+
+	/* Segment registers (ES, CS, SS, DS, FS, GS) */
+	SegReg sreg[6];
+
+	/* GDTR - Global Descriptor Table Register */
+	GDTR gdtr;
+
+	/* CR0 - Control Register 0 */
+	CR0 cr0;
 
 } CPU_state;
 

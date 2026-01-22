@@ -1,4 +1,5 @@
 #include "cpu/exec/helper.h"
+#include "cpu/decode/modrm.h"
 #include "monitor/monitor.h"
 
 make_helper(inv) {
@@ -38,5 +39,46 @@ make_helper(nemu_trap) {
 	}
 
 	return 1;
+}
+
+/* lgdt instruction: load GDTR from memory
+ * Format: 0F 01 /2 (in group7)
+ * Operand: 6-byte memory location containing limit (2 bytes) + base (4 bytes)
+ */
+make_helper(lgdt) {
+	ModR_M m;
+	m.val = instr_fetch(eip + 1, 1);
+	int len = load_addr(eip + 1, &m, op_src);
+	
+	/* Read 6-byte GDTR data from memory */
+	/* First 2 bytes: limit */
+	cpu.gdtr.limit = lnaddr_read(op_src->addr, 2);
+	/* Next 4 bytes: base address */
+	cpu.gdtr.base = lnaddr_read(op_src->addr + 2, 4);
+	
+	print_asm("lgdt %s", op_src->str);
+	return 1 + len;
+}
+
+/* mov cr0, r32: 0F 22 /0 */
+make_helper(mov_r2cr0) {
+	ModR_M m;
+	m.val = instr_fetch(eip + 1, 1);
+	
+	cpu.cr0.val = reg_l(m.R_M);
+	
+	print_asm("movl %%%s,%%cr0", regsl[m.R_M]);
+	return 2;
+}
+
+/* mov r32, cr0: 0F 20 /0 */
+make_helper(mov_cr02r) {
+	ModR_M m;
+	m.val = instr_fetch(eip + 1, 1);
+	
+	reg_l(m.R_M) = cpu.cr0.val;
+	
+	print_asm("movl %%cr0,%%%s", regsl[m.R_M]);
+	return 2;
 }
 

@@ -15,4 +15,8 @@ make_helper(mov_rm2r_v);
 make_helper(mov_a2moffs_v);
 make_helper(mov_moffs2a_v);
 
+/* Segment register move instructions */
+make_helper(mov_sreg2rm);  /* 8C /r: mov rm16, sreg */
+make_helper(mov_rm2sreg);  /* 8E /r: mov sreg, rm16 */
+
 #endif

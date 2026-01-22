@@ -7,6 +7,9 @@
 
 extern uint8_t *hw_mem;
 
+/* current segment register index used for memory access */
+extern int current_sreg;
+
 /* convert the hardware address in the test program to virtual address in NEMU */
 #define hwa_to_va(p) ((void *)(hw_mem + (unsigned)p))
 /* convert the virtual address in NEMU to hardware address in the test program */
