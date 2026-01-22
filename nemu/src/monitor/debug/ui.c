@@ -5,6 +5,7 @@
 #include "monitor/expr.h"
 #include "monitor/watchpoint.h"
 #include "nemu.h"
+#include "../../lib-common/x86-inc/mmu.h"
 
 #include <stdlib.h>
 #include <readline/readline.h>
@@ -260,6 +261,87 @@ static int cmd_bt(char *args) {
 	return 0;
 }
 
+/* Page address translation debug command */
+uint32_t hwaddr_read(hwaddr_t, size_t);
+
+static int cmd_page(char *args) {
+	if (args == NULL) {
+		printf("Usage: page ADDR\n");
+		return 0;
+	}
+
+	/* Check if paging is enabled */
+	if (!cpu.cr0.paging) {
+		printf("Paging is not enabled (CR0.PG = 0)\n");
+		return 0;
+	}
+
+	/* Parse address */
+	bool success;
+	uint32_t lnaddr = expr(args, &success);
+	if (!success) {
+		printf("Invalid expression: %s\n", args);
+		return 0;
+	}
+
+	printf("=== Page Translation for Linear Address 0x%08x ===\n", lnaddr);
+
+	/* Get page directory base from CR3 */
+	uint32_t pdir_base = cpu.cr3.page_directory_base << 12;
+	printf("CR3: 0x%08x (Page Directory Base: 0x%08x)\n", cpu.cr3.val, pdir_base);
+
+	/* Extract page directory index (bits 31:22) */
+	uint32_t pdir_idx = (lnaddr >> 22) & 0x3ff;
+	printf("Page Directory Index: %u (0x%03x)\n", pdir_idx, pdir_idx);
+
+	/* Read page directory entry */
+	uint32_t pde_addr = pdir_base + pdir_idx * 4;
+	PDE pde;
+	pde.val = hwaddr_read(pde_addr, 4);
+	printf("PDE Address: 0x%08x, PDE Value: 0x%08x\n", pde_addr, pde.val);
+	printf("  Present: %d, R/W: %d, U/S: %d, Page Table Base: 0x%08x\n",
+		pde.present, pde.read_write, pde.user_supervisor, pde.page_frame << 12);
+
+	/* Check if page directory entry is present */
+	if (!pde.present) {
+		printf("ERROR: Page Directory Entry not present!\n");
+		return 0;
+	}
+
+	/* Get page table base from PDE */
+	uint32_t ptable_base = pde.page_frame << 12;
+
+	/* Extract page table index (bits 21:12) */
+	uint32_t ptable_idx = (lnaddr >> 12) & 0x3ff;
+	printf("Page Table Index: %u (0x%03x)\n", ptable_idx, ptable_idx);
+
+	/* Read page table entry */
+	uint32_t pte_addr = ptable_base + ptable_idx * 4;
+	PTE pte;
+	pte.val = hwaddr_read(pte_addr, 4);
+	printf("PTE Address: 0x%08x, PTE Value: 0x%08x\n", pte_addr, pte.val);
+	printf("  Present: %d, R/W: %d, U/S: %d, Page Frame: 0x%08x\n",
+		pte.present, pte.read_write, pte.user_supervisor, pte.page_frame << 12);
+
+	/* Check if page table entry is present */
+	if (!pte.present) {
+		printf("ERROR: Page Table Entry not present!\n");
+		return 0;
+	}
+
+	/* Get physical page frame from PTE */
+	uint32_t page_frame = pte.page_frame << 12;
+
+	/* Extract page offset (bits 11:0) */
+	uint32_t offset = lnaddr & 0xfff;
+	printf("Page Offset: 0x%03x\n", offset);
+
+	/* Physical address = page frame + offset */
+	uint32_t hwaddr = page_frame | offset;
+	printf("=== Result: Linear 0x%08x -> Physical 0x%08x ===\n", lnaddr, hwaddr);
+
+	return 0;
+}
 
 
 static int cmd_help(char *args);
@@ -279,6 +361,7 @@ static struct {
 	{ "w", "Set watchpoint", cmd_w },
 	{ "d", "Delete watchpoint", cmd_d },
 	{ "bt", "Print backtrace of all stack frames", cmd_bt },
+	{ "page", "Show page translation for address", cmd_page },
 
 	/* TODO: Add more commands */
 
