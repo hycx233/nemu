@@ -79,6 +79,9 @@ typedef struct {
 	/* CR0 - Control Register 0 */
 	CR0 cr0;
 
+	/* CR3 - Control Register 3 (Page Directory Base Register) */
+	CR3 cr3;
+
 } CPU_state;
 
 extern CPU_state cpu;

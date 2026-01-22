@@ -90,6 +90,16 @@ make_group(group7,
 	inv, inv, lgdt, inv, 
 	inv, inv, inv, inv)
 
+/* 0F 20: mov r32, crN - read from control register */
+make_group(mov_cr2r_group,
+	mov_cr02r, inv, inv, mov_cr32r,
+	inv, inv, inv, inv)
+
+/* 0F 22: mov crN, r32 - write to control register */
+make_group(mov_r2cr_group,
+	mov_r2cr0, inv, inv, mov_r2cr3,
+	inv, inv, inv, inv)
+
 
 /* TODO: Add more instructions!!! */
 
@@ -157,7 +167,7 @@ helper_fun opcode_table [256] = {
 /* 0xf0 */	inv, inv, repnz, rep,
 /* 0xf4 */	inv, inv, group3_b, group3_v,
 /* 0xf8 */	inv, inv, inv, inv,
-/* 0xfc */	inv, inv, group4, group5
+/* 0xfc */	cld, std, group4, group5
 };
 
 helper_fun _2byte_opcode_table [256] = {
@@ -169,7 +179,7 @@ helper_fun _2byte_opcode_table [256] = {
 /* 0x14 */	inv, inv, inv, inv, 
 /* 0x18 */	inv, inv, inv, inv, 
 /* 0x1c */	inv, inv, inv, inv, 
-/* 0x20 */	mov_cr02r, inv, mov_r2cr0, inv, 
+/* 0x20 */	mov_cr2r_group, inv, mov_r2cr_group, inv, 
 /* 0x24 */	inv, inv, inv, inv,
 /* 0x28 */	inv, inv, inv, inv, 
 /* 0x2c */	inv, inv, inv, inv, 

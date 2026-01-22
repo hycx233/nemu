@@ -16,11 +16,91 @@ void hwaddr_write(hwaddr_t addr, size_t len, uint32_t data) {
 	cache_write(addr, len, data);
 }
 
+/* Page table translation: linear address -> physical address
+ * IA-32 uses two-level page table:
+ * Linear address format (32-bit):
+ *   [31:22] - Page Directory Index (10 bits)
+ *   [21:12] - Page Table Index (10 bits)
+ *   [11:0]  - Page Offset (12 bits)
+ */
+static hwaddr_t page_translate(lnaddr_t addr) {
+	/* Get page directory base from CR3 */
+	uint32_t pdir_base = cpu.cr3.page_directory_base << 12;
+	
+	/* Extract page directory index (bits 31:22) */
+	uint32_t pdir_idx = (addr >> 22) & 0x3ff;
+	
+	/* Read page directory entry */
+	PDE pde;
+	pde.val = hwaddr_read(pdir_base + pdir_idx * 4, 4);
+	
+	/* Check if page directory entry is present */
+	if (!pde.present) {
+		fprintf(stderr, "Page fault: linear address = 0x%08x, pdir_base = 0x%08x, pdir_idx = %u\n", addr, pdir_base, pdir_idx);
+	}
+	assert(pde.present);
+	
+	/* Get page table base from PDE */
+	uint32_t ptable_base = pde.page_frame << 12;
+	
+	/* Extract page table index (bits 21:12) */
+	uint32_t ptable_idx = (addr >> 12) & 0x3ff;
+	
+	/* Read page table entry */
+	PTE pte;
+	pte.val = hwaddr_read(ptable_base + ptable_idx * 4, 4);
+	
+	/* Check if page table entry is present */
+	assert(pte.present);
+	
+	/* Get physical page frame from PTE */
+	uint32_t page_frame = pte.page_frame << 12;
+	
+	/* Extract page offset (bits 11:0) */
+	uint32_t offset = addr & 0xfff;
+	
+	/* Physical address = page frame + offset */
+	return page_frame | offset;
+}
+
 uint32_t lnaddr_read(lnaddr_t addr, size_t len) {
+	/* Check if paging is enabled */
+	if (cpu.cr0.paging) {
+		/* Handle cross-page access */
+		if ((addr & 0xfff) + len > 0x1000) {
+			/* Data crosses page boundary, need to read byte by byte */
+			uint32_t result = 0;
+			size_t i;
+			for (i = 0; i < len; i++) {
+				hwaddr_t hwaddr = page_translate(addr + i);
+				uint32_t byte = hwaddr_read(hwaddr, 1);
+				result |= (byte << (i * 8));
+			}
+			return result;
+		}
+		hwaddr_t hwaddr = page_translate(addr);
+		return hwaddr_read(hwaddr, len);
+	}
 	return hwaddr_read(addr, len);
 }
 
 void lnaddr_write(lnaddr_t addr, size_t len, uint32_t data) {
+	/* Check if paging is enabled */
+	if (cpu.cr0.paging) {
+		/* Handle cross-page access */
+		if ((addr & 0xfff) + len > 0x1000) {
+			/* Data crosses page boundary, need to write byte by byte */
+			size_t i;
+			for (i = 0; i < len; i++) {
+				hwaddr_t hwaddr = page_translate(addr + i);
+				hwaddr_write(hwaddr, 1, (data >> (i * 8)) & 0xff);
+			}
+			return;
+		}
+		hwaddr_t hwaddr = page_translate(addr);
+		hwaddr_write(hwaddr, len, data);
+		return;
+	}
 	hwaddr_write(addr, len, data);
 }
 

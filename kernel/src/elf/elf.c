@@ -39,6 +39,23 @@ uint32_t loader() {
 	int i;
 	for (i = 0; i < elf->e_phnum; i++, ph++) {
 		if (ph->p_type == PT_LOAD) {
+#ifdef IA32_PAGE
+			/* Allocate physical memory for this segment and set up page tables */
+			uint32_t paddr = mm_malloc(ph->p_vaddr, ph->p_memsz);
+			
+			/* Load segment into the allocated physical memory */
+			ramdisk_read((uint8_t *)paddr, ph->p_offset, ph->p_filesz);
+
+			/* Zero out the .bss section */
+			if (ph->p_memsz > ph->p_filesz) {
+				memset((uint8_t *)(paddr + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
+			}
+
+			/* Record the program break for future use. */
+			extern uint32_t cur_brk, max_brk;
+			uint32_t new_brk = ph->p_vaddr + ph->p_memsz - 1;
+			if(cur_brk < new_brk) { max_brk = cur_brk = new_brk; }
+#else
 			// Load segment into memory
 			ramdisk_read((uint8_t *)ph->p_vaddr, ph->p_offset, ph->p_filesz);
 
@@ -46,13 +63,6 @@ uint32_t loader() {
 			if (ph->p_memsz > ph->p_filesz) {
 				memset((uint8_t *)(ph->p_vaddr + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
 			}
-
-
-#ifdef IA32_PAGE
-			/* Record the program break for future use. */
-			extern uint32_t cur_brk, max_brk;
-			uint32_t new_brk = ph->p_vaddr + ph->p_memsz - 1;
-			if(cur_brk < new_brk) { max_brk = cur_brk = new_brk; }
 #endif
 		}
 	}

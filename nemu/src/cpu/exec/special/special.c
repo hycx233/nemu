@@ -82,3 +82,38 @@ make_helper(mov_cr02r) {
 	return 2;
 }
 
+/* mov cr3, r32: 0F 22 /3 */
+make_helper(mov_r2cr3) {
+	ModR_M m;
+	m.val = instr_fetch(eip + 1, 1);
+	
+	cpu.cr3.val = reg_l(m.R_M);
+	
+	print_asm("movl %%%s,%%cr3", regsl[m.R_M]);
+	return 2;
+}
+
+/* mov r32, cr3: 0F 20 /3 */
+make_helper(mov_cr32r) {
+	ModR_M m;
+	m.val = instr_fetch(eip + 1, 1);
+	
+	reg_l(m.R_M) = cpu.cr3.val;
+	
+	print_asm("movl %%cr3,%%%s", regsl[m.R_M]);
+	return 2;
+}
+
+/* cld: Clear Direction Flag (FC) */
+make_helper(cld) {
+	cpu.eflags.DF = 0;
+	print_asm("cld");
+	return 1;
+}
+
+/* std: Set Direction Flag (FD) */
+make_helper(std) {
+	cpu.eflags.DF = 1;
+	print_asm("std");
+	return 1;
+}
